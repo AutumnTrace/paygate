@@ -10,7 +10,9 @@ using Paygate.Application.Providers;
 using Paygate.Application.Resilience;
 using Paygate.Application.Routing;
 using Paygate.Application.Webhooks;
+using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
+using Polly.Telemetry;
 
 namespace Paygate.Application;
 
@@ -94,6 +96,10 @@ public static class DependencyInjection
                 });
             }
         });
+
+        // Polly's own log events repeat what ProviderPipeline and ProviderInvoker already log with more
+        // context; keep Polly's metrics (resilience.polly.*) and drop its logs.
+        services.Configure<TelemetryOptions>(options => options.LoggerFactory = NullLoggerFactory.Instance);
 
         return services;
     }

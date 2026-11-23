@@ -26,19 +26,23 @@ internal sealed class EfIdempotencyStore(
         for (var round = 0; round < 2; round++)
         {
             var now = time.GetUtcNow();
-            if (await TryInsertAsync(request, now, cancellationToken).ConfigureAwait(false))
-            {
-                return IdempotencyDecision.Proceed;
-            }
-
             await using var db = await contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
-            var existing = await db.IdempotencyRecords.AsNoTracking()
-                .SingleOrDefaultAsync(r => r.MerchantId == request.MerchantId && r.Key == request.Key, cancellationToken)
-                .ConfigureAwait(false);
 
+            // Retries of a finished request are the common case, so look first; the INSERT (and its
+            // unique constraint) only has to settle genuine races between concurrent requests.
+            var existing = await FindAsync(db, request, cancellationToken).ConfigureAwait(false);
             if (existing is null)
             {
-                continue; // Released between our INSERT and SELECT; try to claim it again.
+                if (await TryInsertAsync(request, now, cancellationToken).ConfigureAwait(false))
+                {
+                    return IdempotencyDecision.Proceed;
+                }
+
+                existing = await FindAsync(db, request, cancellationToken).ConfigureAwait(false);
+                if (existing is null)
+                {
+                    continue; // Released between our INSERT and SELECT; try to claim it again.
+                }
             }
 
             if (existing.ExpiresAt <= now)
@@ -115,6 +119,10 @@ internal sealed class EfIdempotencyStore(
         await using var db = await contexts.CreateDbContextAsync(cancellationToken).ConfigureAwait(false);
         return await db.IdempotencyRecords.Where(r => r.ExpiresAt <= now).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    private static Task<IdempotencyRecord?> FindAsync(PaygateDbContext db, IdempotencyRequest request, CancellationToken cancellationToken) =>
+        db.IdempotencyRecords.AsNoTracking()
+            .SingleOrDefaultAsync(r => r.MerchantId == request.MerchantId && r.Key == request.Key, cancellationToken);
 
     private async Task<bool> TryInsertAsync(IdempotencyRequest request, DateTimeOffset now, CancellationToken cancellationToken)
     {

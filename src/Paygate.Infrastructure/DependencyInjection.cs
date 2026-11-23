@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Paygate.Application.Events;
 using Paygate.Application.Idempotency;
@@ -74,6 +76,13 @@ public static class DependencyInjection
                     _ => options.UseSqlite(connectionString),
                 };
                 options.UseSnakeCaseNamingConvention();
+
+                // A failed command surfaces as an exception that is either expected and handled (a lost
+                // unique-key race on an idempotency key or webhook event) or logged where it is caught,
+                // so EF's own error log for it would only be noise.
+                options.ConfigureWarnings(warnings => warnings.Log(
+                    (RelationalEventId.CommandError, LogLevel.Debug),
+                    (CoreEventId.SaveChangesFailed, LogLevel.Debug)));
             },
             ServiceLifetime.Singleton);
 

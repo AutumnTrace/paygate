@@ -146,7 +146,7 @@ public sealed partial class PaymentRouter(
     private RoutingResult Finish(Payment payment, RoutingOutcome outcome, string? rule)
     {
         metrics.PaymentRouted(payment.Kind.ToString(), payment.Method.ToString(), payment.Provider, payment.Status.ToString());
-        LogRouted(logger, payment.Id, outcome, payment.Provider ?? "none", payment.Status, payment.Attempts.Count);
+        LogRouted(logger, payment.Id, outcome, payment.Provider ?? payment.Attempts.LastOrDefault()?.Provider ?? "none", payment.Status, payment.Attempts.Count);
         return new RoutingResult(outcome, rule, payment.Provider);
     }
 

@@ -141,8 +141,8 @@ public sealed partial class WebhookService(
         return result;
     }
 
-    [LoggerMessage(EventId = 6001, Level = LogLevel.Information, Message = "Webhook {EventId} from {Provider}: {Outcome} (payment {PaymentId})")]
-    private static partial void LogHandled(ILogger logger, string provider, string eventId, WebhookOutcome outcome, Guid? paymentId);
+    [LoggerMessage(EventId = 6001, Level = LogLevel.Information, Message = "Webhook {WebhookEventId} from {Provider}: {Outcome} (payment {PaymentId})")]
+    private static partial void LogHandled(ILogger logger, string provider, string webhookEventId, WebhookOutcome outcome, Guid? paymentId);
 
     [LoggerMessage(EventId = 6002, Level = LogLevel.Error, Message = "Possible double charge: {Provider} reports {Status} for payment {PaymentId}, which {Owner} already owns. Reverse one of the charges")]
     private static partial void LogPossibleDoubleCharge(ILogger logger, Guid paymentId, string provider, PaymentStatus status, string owner);
