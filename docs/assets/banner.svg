@@ -50,7 +50,6 @@
 
     <!-- gateway -->
     <rect x="160" y="130" width="100" height="100" rx="22" fill="#151d3b" stroke="url(#accent)" stroke-width="3"/>
-    <path d="M190 180h40M210 160v40" stroke="#e2e8f0" stroke-width="5" stroke-linecap="round" opacity="0.15"/>
     <path d="M188 168l14 12-14 12M206 168l14 12-14 12" fill="none" stroke="#e2e8f0" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
 
     <!-- provider A: circuit open (broken, dashed) -->
@@ -60,7 +59,7 @@
     <text x="460" y="86" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="16" fill="#fecaca">open</text>
 
     <!-- provider B: takes the traffic -->
-    <path d="M260 180 C 330 180, 360 180, 420 180" fill="none" stroke="url(#accent)" stroke-width="4"/>
+    <path d="M260 180 C 330 180, 360 180, 420 180" fill="none" stroke="#5eead4" stroke-width="4"/>
     <rect x="420" y="156" width="120" height="48" rx="12" fill="#13233a" stroke="#5eead4" stroke-width="2"/>
     <circle cx="444" cy="180" r="7" fill="#5eead4"/>
     <text x="460" y="186" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="16" fill="#ccfbf1">closed</text>
