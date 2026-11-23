@@ -72,14 +72,33 @@ public sealed partial class ProviderInvoker(
         var pipeline = pipelines.GetPipeline(provider.Name);
         var context = ResilienceContextPool.Shared.Get(cancellationToken);
         context.Properties.Set(ProviderPipeline.IsIdempotent, provider.Capabilities.SupportsIdempotencyKeys);
+        var tracker = new CallTracker();
         var started = time.GetTimestamp();
 
         try
         {
             var response = await pipeline.ExecuteAsync(
-                static async (ctx, state) => await state.call(state.provider, state.request, ctx.CancellationToken).ConfigureAwait(false),
+                static async (ctx, state) =>
+                {
+                    state.tracker.Calls++;
+                    try
+                    {
+                        return await state.call(state.provider, state.request, ctx.CancellationToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (!state.outer.IsCancellationRequested)
+                    {
+                        state.tracker.LastFailureWasTimeout = true; // Cancelled by an attempt or total timeout.
+                        throw;
+                    }
+                    catch (ProviderUnavailableException ex)
+                    {
+                        state.tracker.LastFailureWasTimeout = false;
+                        state.tracker.LastError = ex.Message;
+                        throw;
+                    }
+                },
                 context,
-                (provider, request, call)).ConfigureAwait(false);
+                (provider, request, call, tracker, outer: cancellationToken)).ConfigureAwait(false);
 
             var elapsed = time.GetElapsedTime(started);
             var outcome = classify(response);
@@ -88,36 +107,50 @@ public sealed partial class ProviderInvoker(
             activity?.SetTag("paygate.outcome", outcome.ToString());
             return new ProviderCallResult<TResponse>(outcome, elapsed, response, null);
         }
-        catch (BrokenCircuitException)
+        catch (BrokenCircuitException) when (tracker.Calls == 0)
         {
+            // Rejected by the open circuit before reaching the provider: nothing was sent.
             var elapsed = time.GetElapsedTime(started);
             metrics.ProviderCall(provider.Name, operation, "circuit_open", elapsed);
             activity?.SetStatus(ActivityStatusCode.Error, "circuit open");
             return new ProviderCallResult<TResponse>(AttemptOutcome.SkippedCircuitOpen, elapsed, null, "circuit open");
         }
-        catch (TimeoutRejectedException ex) when (!cancellationToken.IsCancellationRequested)
+        catch (Exception ex) when (ex is TimeoutRejectedException or ProviderUnavailableException or BrokenCircuitException
+            && !cancellationToken.IsCancellationRequested)
         {
+            // The provider was called (possibly several times) and never gave a usable answer.
+            // If the circuit opened during our own retries, report what actually happened to the calls.
             var elapsed = time.GetElapsedTime(started);
-            var error = $"timed out after {elapsed.TotalMilliseconds:F0} ms";
+            var timedOut = ex is TimeoutRejectedException || (ex is BrokenCircuitException && tracker.LastFailureWasTimeout);
+            var error = Describe(tracker, timedOut, ex is BrokenCircuitException);
+
             providerHealth.RecordFailure(elapsed, error, time.GetUtcNow());
-            metrics.ProviderCall(provider.Name, operation, "timeout", elapsed);
+            metrics.ProviderCall(provider.Name, operation, timedOut ? "timeout" : "error", elapsed);
             activity?.SetStatus(ActivityStatusCode.Error, error);
             LogCallFailed(logger, ex, provider.Name, operation, error);
-            return new ProviderCallResult<TResponse>(AttemptOutcome.TimedOut, elapsed, null, error);
-        }
-        catch (ProviderUnavailableException ex)
-        {
-            var elapsed = time.GetElapsedTime(started);
-            providerHealth.RecordFailure(elapsed, ex.Message, time.GetUtcNow());
-            metrics.ProviderCall(provider.Name, operation, "error", elapsed);
-            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            LogCallFailed(logger, ex, provider.Name, operation, ex.Message);
-            return new ProviderCallResult<TResponse>(AttemptOutcome.Failed, elapsed, null, ex.Message);
+            return new ProviderCallResult<TResponse>(timedOut ? AttemptOutcome.TimedOut : AttemptOutcome.Failed, elapsed, null, error);
         }
         finally
         {
             ResilienceContextPool.Shared.Return(context);
         }
+    }
+
+    private static string Describe(CallTracker tracker, bool timedOut, bool circuitOpened)
+    {
+        var what = timedOut ? "timed out" : tracker.LastError ?? "failed";
+        var calls = tracker.Calls == 1 ? "1 call" : $"{tracker.Calls} calls";
+        return circuitOpened ? $"{what} ({calls}), then the circuit opened" : $"{what} ({calls})";
+    }
+
+    /// <summary>What happened inside the pipeline, across retries.</summary>
+    private sealed class CallTracker
+    {
+        public int Calls { get; set; }
+
+        public bool LastFailureWasTimeout { get; set; }
+
+        public string? LastError { get; set; }
     }
 
     [LoggerMessage(EventId = 2010, Level = LogLevel.Warning, Message = "Call to {Provider} ({Operation}) failed: {Error}")]

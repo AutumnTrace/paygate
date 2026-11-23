@@ -3,7 +3,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Paygate.Application.Idempotency;
 using Paygate.Application.Observability;
+using Paygate.Application.Payments;
 using Paygate.Application.Providers;
 using Paygate.Application.Resilience;
 using Paygate.Application.Routing;
@@ -13,6 +15,24 @@ namespace Paygate.Application;
 
 public static class DependencyInjection
 {
+    /// <summary>Everything in the application layer: routing, payment use cases and idempotency settings.</summary>
+    public static IServiceCollection AddPaygateApplication(this IServiceCollection services, IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        services.AddPaygateRouting(configuration);
+        services.AddScoped<PaymentService>();
+
+        services.AddOptions<IdempotencyOptions>()
+            .Bind(configuration.GetSection(IdempotencyOptions.SectionName))
+            .Validate(o => o.RetentionPeriod >= TimeSpan.FromMinutes(1), "Idempotency: RetentionPeriod must be at least one minute.")
+            .Validate(o => o.InFlightLockTimeout > TimeSpan.Zero, "Idempotency: InFlightLockTimeout must be positive.")
+            .Validate(o => o.MaxRequestBodyBytes is > 0 and <= 1_048_576, "Idempotency: MaxRequestBodyBytes must be within 1 byte and 1 MiB.")
+            .ValidateOnStart();
+
+        return services;
+    }
+
     /// <summary>
     /// Routing, failover and one resilience pipeline per registered <see cref="IPaymentProvider"/>.
     /// Providers themselves are registered by the infrastructure layer.

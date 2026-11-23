@@ -1,10 +1,12 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Paygate.Api/Paygate.Api.csproj" />
     <Project Path="src/Paygate.Application/Paygate.Application.csproj" />
     <Project Path="src/Paygate.Domain/Paygate.Domain.csproj" />
     <Project Path="src/Paygate.Infrastructure/Paygate.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Paygate.Api.Tests/Paygate.Api.Tests.csproj" />
     <Project Path="tests/Paygate.UnitTests/Paygate.UnitTests.csproj" />
   </Folder>
 </Solution>
