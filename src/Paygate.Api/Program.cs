@@ -16,6 +16,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Logging: human-readable in development, compact JSON everywhere else. Events are also handed to
 // the OpenTelemetry logging provider, so they reach the OTLP / Azure Monitor exporter with trace ids.
+// Serilog replaces the default console/debug providers; only the OpenTelemetry provider is added back.
+builder.Logging.ClearProviders();
 builder.Services.AddSerilog(
     (services, logger) =>
     {

@@ -127,7 +127,7 @@ public sealed partial class ProviderInvoker(
             providerHealth.RecordFailure(elapsed, error, time.GetUtcNow());
             metrics.ProviderCall(provider.Name, operation, timedOut ? "timeout" : "error", elapsed);
             activity?.SetStatus(ActivityStatusCode.Error, error);
-            LogCallFailed(logger, ex, provider.Name, operation, error);
+            LogCallFailed(logger, provider.Name, operation, error);
             return new ProviderCallResult<TResponse>(timedOut ? AttemptOutcome.TimedOut : AttemptOutcome.Failed, elapsed, null, error);
         }
         finally
@@ -154,5 +154,5 @@ public sealed partial class ProviderInvoker(
     }
 
     [LoggerMessage(EventId = 2010, Level = LogLevel.Warning, Message = "Call to {Provider} ({Operation}) failed: {Error}")]
-    private static partial void LogCallFailed(ILogger logger, Exception exception, string provider, string operation, string error);
+    private static partial void LogCallFailed(ILogger logger, string provider, string operation, string error);
 }

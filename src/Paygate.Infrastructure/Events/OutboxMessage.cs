@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -50,11 +51,39 @@ public sealed class OutboxMessage
             EventId = domainEvent.EventId,
             Type = domainEvent.EventType,
             Key = domainEvent is PaymentEvent payment ? payment.PaymentId.ToString() : domainEvent.EventId.ToString(),
-            Payload = JsonSerializer.Serialize(domainEvent, domainEvent.GetType(), SerializerOptions),
+            Payload = Serialize(domainEvent),
             OccurredAt = domainEvent.OccurredAt,
             TraceParent = Activity.Current?.Id,
         };
     }
+
+    /// <summary>
+    /// JSON with the envelope fields first (eventId, eventType, paymentId, merchantId, occurredAt) and the
+    /// event-specific fields after them, so every event type reads the same way. Serialization concerns
+    /// stay here instead of as attributes on the domain events.
+    /// </summary>
+    private static string Serialize(IDomainEvent domainEvent)
+    {
+        var fields = JsonSerializer.SerializeToNode(domainEvent, domainEvent.GetType(), SerializerOptions)!.AsObject();
+        var ordered = new JsonObject();
+        foreach (var name in LeadingFields)
+        {
+            if (fields.Remove(name, out var value))
+            {
+                ordered[name] = value;
+            }
+        }
+
+        foreach (var (name, value) in fields.ToList())
+        {
+            fields.Remove(name);
+            ordered[name] = value;
+        }
+
+        return ordered.ToJsonString(SerializerOptions);
+    }
+
+    private static readonly string[] LeadingFields = ["eventId", "eventType", "paymentId", "merchantId", "occurredAt"];
 
     public EventEnvelope ToEnvelope() => new(EventId, Type, Key, Payload, OccurredAt, TraceParent);
 }
