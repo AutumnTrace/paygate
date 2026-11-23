@@ -31,9 +31,6 @@ public sealed class SimulatedProviderOptions
 
     public bool SupportsIdempotencyKeys { get; set; } = true;
 
-    /// <summary>Shared secret the provider signs its webhooks with (HMAC-SHA256).</summary>
-    public string WebhookSecret { get; set; } = string.Empty;
-
     /// <summary>Initial fault settings. They can be changed at runtime through the admin API.</summary>
     public ProviderFaults Faults { get; set; } = new();
 }

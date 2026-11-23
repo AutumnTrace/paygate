@@ -9,12 +9,12 @@ internal sealed class EfPaymentRepository(PaygateDbContext db) : IPaymentReposit
     public Task<Payment?> GetAsync(string merchantId, Guid id, CancellationToken cancellationToken) =>
         db.Payments.AsSplitQuery().SingleOrDefaultAsync(p => p.Id == id && p.MerchantId == merchantId, cancellationToken);
 
-    public async Task<Payment?> FindForProviderAsync(string provider, Guid? paymentId, string? providerReference, CancellationToken cancellationToken)
+    public async Task<Payment?> FindForWebhookAsync(string provider, Guid? paymentId, string? providerReference, CancellationToken cancellationToken)
     {
         if (paymentId is { } id)
         {
             return await db.Payments.AsSplitQuery()
-                .SingleOrDefaultAsync(p => p.Id == id && p.Provider == provider, cancellationToken)
+                .SingleOrDefaultAsync(p => p.Id == id, cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -50,6 +50,10 @@ internal sealed class EfPaymentRepository(PaygateDbContext db) : IPaymentReposit
         catch (DbUpdateConcurrencyException ex)
         {
             throw new ConcurrencyConflictException("The payment was changed by another request. Reload it and try again.", ex);
+        }
+        catch (DbUpdateException ex) when (DbErrors.IsUniqueViolation(ex))
+        {
+            throw new DuplicateKeyException("A row with the same key was saved concurrently.", ex);
         }
     }
 }

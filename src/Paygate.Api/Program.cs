@@ -85,6 +85,7 @@ var v1 = app.MapGroup("/v1")
 
 v1.MapPaymentEndpoints();
 v1.MapProviderEndpoints();
+v1.MapWebhookEndpoints();
 
 app.MapPaygateHealthChecks();
 app.MapGet("/", () => Results.Redirect(app.Environment.IsDevelopment() ? "/scalar/v1" : "/health/ready")).ExcludeFromDescription();

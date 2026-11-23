@@ -18,6 +18,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - API-key authentication per operator (SHA-256 at rest, constant-time comparison), merchant and admin policies, tenant isolation
 - Token-bucket rate limiting per API client, `429` with `Retry-After`
 - RFC 9457 problem details with stable `code` values; .NET 10 built-in request validation
+- Signed provider webhooks at `POST /v1/webhooks/{provider}`: HMAC-SHA256 over timestamp and raw body, 5-minute replay window, constant-time comparison, secret rotation with multiple active secrets
+- Exactly-once webhook processing (event id inbox committed with the payment change) and out-of-order handling through the state machine; a provider reporting on a payment it does not own is flagged as a possible double charge
 - Admin endpoints for fault injection and manual circuit isolation
 - EF Core persistence: SQLite by default, PostgreSQL by configuration; optimistic concurrency on payments; indexes for merchant listings, provider references and key expiry
 - OpenAPI document and Scalar API reference, `/health/live` and `/health/ready`, Serilog request logging
