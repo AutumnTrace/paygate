@@ -8,6 +8,8 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="FsCheck.Xunit.v3" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.Testing" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3.mtp-off" />
     <PackageReference Include="xunit.runner.visualstudio" />
@@ -19,6 +21,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Paygate.Domain\Paygate.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Paygate.Application\Paygate.Application.csproj" />
+    <ProjectReference Include="..\..\src\Paygate.Infrastructure\Paygate.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

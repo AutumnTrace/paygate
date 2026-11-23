@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Adapters: simulated PSPs with fault injection, EF Core persistence, Kafka event publishing.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Paygate.Application\Paygate.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Paygate.UnitTests" />
+  </ItemGroup>
+
+</Project>

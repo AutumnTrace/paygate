@@ -143,6 +143,19 @@ public sealed class Payment : AggregateRoot
         TransitionTo(status, now);
     }
 
+    /// <summary>
+    /// The provider was called but its answer never arrived, so it may or may not have moved the money.
+    /// The payment waits in Pending for the provider's webhook (or reconciliation) instead of being
+    /// retried elsewhere, which could pay out twice.
+    /// </summary>
+    public void MarkOutcomeUnknown(string provider, DateTimeOffset now)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(provider);
+        Provider = provider;
+        ProviderReference = null;
+        TransitionTo(PaymentStatus.Pending, now);
+    }
+
     public void MarkFailed(string code, string message, DateTimeOffset now)
     {
         TransitionTo(PaymentStatus.Failed, now);
@@ -205,7 +218,12 @@ public sealed class Payment : AggregateRoot
     /// twice or out of order, so this never throws for those cases: an update that is not a
     /// legal forward move from the current status is acknowledged and ignored.
     /// </summary>
-    public ProviderUpdateResult ApplyProviderUpdate(string provider, PaymentStatus reported, string? failureCode, DateTimeOffset now)
+    public ProviderUpdateResult ApplyProviderUpdate(
+        string provider,
+        PaymentStatus reported,
+        string? failureCode,
+        DateTimeOffset now,
+        string? providerReference = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(provider);
 
@@ -232,6 +250,9 @@ public sealed class Payment : AggregateRoot
                 ProviderUpdateOutcome.Stale,
                 $"Ignored {reported}: the payment is already {Status}, and payments never move backwards.");
         }
+
+        // A payment whose call timed out learns its provider reference from the first webhook.
+        ProviderReference ??= providerReference;
 
         if (reported == PaymentStatus.Failed)
         {
