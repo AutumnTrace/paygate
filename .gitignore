@@ -488,3 +488,4 @@ $RECYCLE.BIN/
 paygate.db*
 BenchmarkDotNet.Artifacts/
 coverage/
+TestResults/

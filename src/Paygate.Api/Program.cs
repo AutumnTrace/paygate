@@ -8,36 +8,40 @@ using Paygate.Api.Idempotency;
 using Paygate.Api.Infrastructure;
 using Paygate.Application;
 using Paygate.Infrastructure;
-using Paygate.Infrastructure.Persistence;
 using Scalar.AspNetCore;
 using Serilog;
 using Serilog.Formatting.Compact;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Logging: human-readable in development, compact JSON everywhere else.
-builder.Services.AddSerilog((services, logger) =>
-{
-    logger.ReadFrom.Configuration(builder.Configuration)
-        .ReadFrom.Services(services)
-        .Enrich.FromLogContext()
-        .Enrich.WithProperty("service", "paygate");
-
-    if (builder.Environment.IsDevelopment())
+// Logging: human-readable in development, compact JSON everywhere else. Events are also handed to
+// the OpenTelemetry logging provider, so they reach the OTLP / Azure Monitor exporter with trace ids.
+builder.Services.AddSerilog(
+    (services, logger) =>
     {
-        logger.WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}");
-    }
-    else
-    {
-        logger.WriteTo.Console(new RenderedCompactJsonFormatter());
-    }
-});
+        logger.ReadFrom.Configuration(builder.Configuration)
+            .ReadFrom.Services(services)
+            .Enrich.FromLogContext()
+            .Enrich.WithProperty("service", "paygate");
 
-// Application, providers and persistence.
+        if (builder.Environment.IsDevelopment())
+        {
+            logger.WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}");
+        }
+        else
+        {
+            logger.WriteTo.Console(new RenderedCompactJsonFormatter());
+        }
+    },
+    writeToProviders: true);
+builder.AddPaygateTelemetry();
+
+// Application, providers, persistence and events.
 builder.Services
     .AddSimulatedProviders(builder.Configuration)
     .AddPaygateApplication(builder.Configuration)
-    .AddPaygatePersistence(builder.Configuration);
+    .AddPaygatePersistence(builder.Configuration)
+    .AddPaygateEvents(builder.Configuration);
 
 // HTTP surface.
 builder.Services.ConfigureHttpJsonOptions(json =>
@@ -50,7 +54,7 @@ builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = 
     context.ProblemDetails.Extensions["traceId"] = Activity.Current?.TraceId.ToString() ?? context.HttpContext.TraceIdentifier);
 builder.Services.AddPaygateOpenApi();
 builder.Services.AddPaygateRateLimiting(builder.Configuration);
-builder.Services.AddHealthChecks().AddDbContextCheck<PaygateDbContext>("database", tags: [HealthChecks.ReadyTag]);
+builder.Services.AddHealthChecks().AddPaygateDependencyChecks(builder.Configuration, HealthChecks.ReadyTag);
 
 // Authentication: one API key per operator, hashed at rest.
 builder.Services.AddOptions<ApiClientsOptions>().Bind(builder.Configuration.GetSection(ApiClientsOptions.SectionName)).ValidateOnStart();
@@ -86,6 +90,7 @@ var v1 = app.MapGroup("/v1")
 v1.MapPaymentEndpoints();
 v1.MapProviderEndpoints();
 v1.MapWebhookEndpoints();
+v1.MapEventEndpoints();
 
 app.MapPaygateHealthChecks();
 app.MapGet("/", () => Results.Redirect(app.Environment.IsDevelopment() ? "/scalar/v1" : "/health/ready")).ExcludeFromDescription();

@@ -7,6 +7,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Paygate.Api.Tests/Paygate.Api.Tests.csproj" />
+    <Project Path="tests/Paygate.IntegrationTests/Paygate.IntegrationTests.csproj" />
     <Project Path="tests/Paygate.UnitTests/Paygate.UnitTests.csproj" />
   </Folder>
 </Solution>
