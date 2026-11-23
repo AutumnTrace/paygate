@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/Paygate.Benchmarks/Paygate.Benchmarks.csproj" />
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Paygate.Api/Paygate.Api.csproj" />
     <Project Path="src/Paygate.Application/Paygate.Application.csproj" />
