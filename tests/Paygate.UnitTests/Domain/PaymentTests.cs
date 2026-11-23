@@ -198,6 +198,17 @@ public sealed class PaymentTests
     }
 
     [Fact]
+    public void Payout_with_an_unknown_outcome_learns_its_reference_from_the_webhook()
+    {
+        var payout = Payment.Create(Guid.NewGuid(), "m_demo", PaymentKind.Payout, PaymentMethod.BankTransfer, Money.Of(500, "SEK"), "SE", "p1", Now);
+        payout.MarkOutcomeUnknown("osprey", Now);
+
+        payout.ApplyProviderUpdate("osprey", PaymentStatus.Captured, null, Now, providerReference: "osp_77");
+
+        Assert.Equal((PaymentStatus.Captured, "osp_77"), (payout.Status, payout.ProviderReference));
+    }
+
+    [Fact]
     public void Failed_webhook_keeps_the_provider_failure_code()
     {
         var payment = NewDeposit();
