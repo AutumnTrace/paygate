@@ -71,6 +71,24 @@ public sealed class PaymentRouterTests
     }
 
     [Fact]
+    public async Task Circuit_opening_during_retries_is_reported_as_what_happened_to_the_calls()
+    {
+        // With a threshold of 2, the breaker opens after the second timeout, so the third (retry)
+        // attempt is rejected by the circuit. The attempt must still read "timed out": the provider
+        // was called and may have received the request.
+        using var harness = new RouterHarness(overrides: new() { ["Resilience:MinimumThroughput"] = "2" });
+        harness.Alpha.Behaviour = (_, ct) => ScriptedProvider.Hang(ct);
+
+        var (payment, _) = await harness.RouteAsync();
+
+        Assert.Equal(2, harness.Alpha.Calls);
+        var attempt = payment.Attempts[0];
+        Assert.Equal(AttemptOutcome.TimedOut, attempt.Outcome);
+        Assert.Equal("timed out (2 calls), then the circuit opened", attempt.Error);
+        Assert.Equal("beta", payment.Provider);
+    }
+
+    [Fact]
     public async Task Half_open_circuit_lets_one_trial_call_through_and_closes_when_it_succeeds()
     {
         var time = new FakeTimeProvider(DateTimeOffset.UtcNow);
