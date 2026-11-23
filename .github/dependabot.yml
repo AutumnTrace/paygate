@@ -14,7 +14,8 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "Microsoft.EntityFrameworkCore*"
         update-types: ["version-update:semver-major"]
-      - dependency-name: "Npgsql.EntityFrameworkCore.PostgreSQL"
+      # Npgsql packages share one major version (and Npgsql 11 pairs with EF Core 11).
+      - dependency-name: "Npgsql*"
         update-types: ["version-update:semver-major"]
       - dependency-name: "Serilog.AspNetCore"
         update-types: ["version-update:semver-major"]
