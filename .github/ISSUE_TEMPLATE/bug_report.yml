@@ -1,0 +1,36 @@
+name: Bug report
+description: Something in the gateway behaves incorrectly
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: The request you sent (method, path, headers without the API key, body) and what came back.
+      placeholder: |
+        POST /v1/payments
+        Idempotency-Key: ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: response
+    attributes:
+      label: Response body
+      description: The JSON response, including the ProblemDetails `traceId` if there is one. Remove any API keys.
+      render: json
+  - type: dropdown
+    id: database
+    attributes:
+      label: Database provider
+      options: [SQLite, PostgreSQL]
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+      placeholder: v0.1.0

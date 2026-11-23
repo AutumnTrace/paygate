@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>Payment aggregate, money value objects and the payment state machine. No framework dependencies.</Description>
+  </PropertyGroup>
+
+</Project>
