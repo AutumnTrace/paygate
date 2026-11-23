@@ -95,6 +95,29 @@ jobs:
       - name: Build image
         run: docker build -t paygate:local .
 
+      - name: Standalone image on SQLite (README option C)
+        run: |
+          docker run -d --name standalone -p 8081:8080 -e ASPNETCORE_ENVIRONMENT=Development paygate:local
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:8081/health/ready > standalone.json 2>/dev/null && break
+            sleep 1
+          done
+          cat standalone.json
+          grep -q '"status":"Healthy"' standalone.json
+
+          curl -fsS -X POST http://localhost:8081/v1/payments \
+            -H "X-Api-Key: pgk_test_demo_7c2f9a41e8b35d06" \
+            -H "Idempotency-Key: ci-standalone-${GITHUB_RUN_ID}" \
+            -H "Content-Type: application/json" \
+            -d '{"amount":2500,"currency":"EUR","method":"card","country":"DE","customerId":"ci-player","paymentToken":"tok_visa_4242"}' \
+            | tee standalone-payment.json
+          grep -q '"status":"captured"' standalone-payment.json
+          curl -fsS -o /dev/null http://localhost:8081/scalar/v1
+
+      - name: Standalone container logs
+        if: failure()
+        run: docker logs standalone
+
       - name: Start the full stack
         run: docker compose up -d --no-build
 

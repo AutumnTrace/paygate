@@ -43,3 +43,28 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  verify:
+    name: Verify the published image
+    runs-on: ubuntu-latest
+    needs: image
+    steps:
+      - name: Run the image exactly as the README says (anonymous pull)
+        run: |
+          docker logout ghcr.io || true
+          docker run -d --name paygate -p 8080:8080 -e ASPNETCORE_ENVIRONMENT=Development \
+            "ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME#v}"
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:8080/health/ready && break
+            sleep 1
+          done
+          curl -fsS -X POST http://localhost:8080/v1/payments \
+            -H "X-Api-Key: pgk_test_demo_7c2f9a41e8b35d06" \
+            -H "Idempotency-Key: release-${GITHUB_RUN_ID}" \
+            -H "Content-Type: application/json" \
+            -d '{"amount":2500,"currency":"EUR","method":"card","country":"DE","customerId":"release-check","paymentToken":"tok_visa_4242"}' \
+            | grep '"status":"captured"'
+
+      - name: Container logs
+        if: failure()
+        run: docker logs paygate

@@ -5,6 +5,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- CI runs the Docker image on its own (SQLite, as in the README's prebuilt-image option) next to the compose stack, and the release workflow pulls the published image anonymously and makes a test deposit against it
+
 ## [0.1.0] - 2026-11-23
 
 First release.
