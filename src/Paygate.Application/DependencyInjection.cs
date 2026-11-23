@@ -9,6 +9,7 @@ using Paygate.Application.Payments;
 using Paygate.Application.Providers;
 using Paygate.Application.Resilience;
 using Paygate.Application.Routing;
+using Paygate.Application.Webhooks;
 using Polly;
 
 namespace Paygate.Application;
@@ -28,6 +29,14 @@ public static class DependencyInjection
             .Validate(o => o.RetentionPeriod >= TimeSpan.FromMinutes(1), "Idempotency: RetentionPeriod must be at least one minute.")
             .Validate(o => o.InFlightLockTimeout > TimeSpan.Zero, "Idempotency: InFlightLockTimeout must be positive.")
             .Validate(o => o.MaxRequestBodyBytes is > 0 and <= 1_048_576, "Idempotency: MaxRequestBodyBytes must be within 1 byte and 1 MiB.")
+            .ValidateOnStart();
+
+        services.AddScoped<WebhookService>();
+        services.AddSingleton<WebhookVerifier>();
+        services.AddOptions<WebhookOptions>()
+            .Bind(configuration.GetSection(WebhookOptions.SectionName))
+            .Validate(o => o.Tolerance > TimeSpan.Zero && o.Tolerance <= TimeSpan.FromHours(1), "Webhooks: Tolerance must be positive and at most one hour.")
+            .Validate(o => o.Secrets.Values.SelectMany(s => s).All(s => s.Length >= 16), "Webhooks: every secret must be at least 16 characters.")
             .ValidateOnStart();
 
         return services;

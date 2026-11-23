@@ -5,10 +5,12 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using Paygate.Application.Idempotency;
 using Paygate.Application.Payments;
+using Paygate.Application.Webhooks;
 using Paygate.Application.Providers;
 using Paygate.Infrastructure.Idempotency;
 using Paygate.Infrastructure.Persistence;
 using Paygate.Infrastructure.Providers;
+using Paygate.Infrastructure.Webhooks;
 
 namespace Paygate.Infrastructure;
 
@@ -76,6 +78,7 @@ public static class DependencyInjection
         // The business unit of work: one context per request.
         services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<PaygateDbContext>>().CreateDbContext());
         services.AddScoped<IPaymentRepository, EfPaymentRepository>();
+        services.AddScoped<IWebhookInbox, EfWebhookInbox>();
         services.AddSingleton<IIdempotencyStore, EfIdempotencyStore>();
         services.AddHostedService<IdempotencyCleanupService>();
 
