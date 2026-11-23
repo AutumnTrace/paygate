@@ -1,0 +1,98 @@
+# Full stack: paygate on PostgreSQL, publishing domain events to Kafka and telemetry to the
+# Aspire dashboard (traces, metrics and logs over OTLP).
+#
+#   docker compose up --build
+#
+# API reference (Scalar):  http://localhost:8080/scalar/v1
+# Telemetry dashboard:     http://localhost:18888
+# Kafka from the host:     localhost:29092, topic payments.v1
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: paygate
+      POSTGRES_PASSWORD: paygate
+      POSTGRES_DB: paygate
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paygate -d paygate"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  kafka:
+    image: apache/kafka:4.3.2
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,HOST://:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    ports:
+      - "29092:29092"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 10s
+
+  # Creates the events topic once Kafka is up: 3 partitions, keyed by payment id.
+  kafka-init:
+    image: apache/kafka:4.3.2
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint:
+      - /opt/kafka/bin/kafka-topics.sh
+      - --bootstrap-server=kafka:9092
+      - --create
+      - --if-not-exists
+      - --topic=payments.v1
+      - --partitions=3
+      - --replication-factor=1
+    restart: "no"
+
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:13.6
+    environment:
+      DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    ports:
+      - "18888:18888"
+
+  api:
+    build: .
+    image: paygate:local
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+    environment:
+      # Development loads the demo API keys and webhook secrets from appsettings.Development.json
+      # and serves the OpenAPI document and Scalar UI. Use real secrets outside a demo.
+      ASPNETCORE_ENVIRONMENT: Development
+      Database__Provider: Postgres
+      ConnectionStrings__Paygate: Host=postgres;Database=paygate;Username=paygate;Password=paygate
+      Events__Publisher: Kafka
+      Kafka__BootstrapServers: kafka:9092
+      Kafka__Topic: payments.v1
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire-dashboard:18889
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+
+volumes:
+  pgdata:

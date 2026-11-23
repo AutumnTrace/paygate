@@ -37,6 +37,7 @@ public class PaygateApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Providers:wren:Faults:LatencyMs", "0");
         builder.UseSetting("RateLimiting:PermitsPerSecond", "1000");
         builder.UseSetting("RateLimiting:Burst", "1000");
+        builder.UseSetting("Events:PollInterval", "00:00:00.050");
 
         foreach (var (key, value) in Settings)
         {

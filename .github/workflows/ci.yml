@@ -18,7 +18,7 @@ env:
 
 jobs:
   test:
-    name: Build and unit tests
+    name: Build, unit and API tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -33,7 +33,7 @@ jobs:
       - name: Build
         run: dotnet build --no-restore -c Release
 
-      - name: Unit tests
+      - name: Unit and API tests
         run: >-
           dotnet test --no-build -c Release
           --filter "Category!=Integration"
@@ -54,3 +54,77 @@ jobs:
         with:
           name: unit-test-results
           path: TestResults/**
+
+  integration:
+    name: Integration tests (Testcontainers)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Build
+        run: dotnet build tests/Paygate.IntegrationTests -c Release
+
+      - name: PostgreSQL and Kafka integration tests
+        run: >-
+          dotnet test tests/Paygate.IntegrationTests --no-build -c Release
+          --filter "Category=Integration"
+          --logger "trx;LogFileName=integration.trx"
+          --logger "console;verbosity=normal"
+          --results-directory TestResults/integration
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: integration-test-results
+          path: TestResults/**
+
+  docker:
+    name: Docker image and compose smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Validate compose file
+        run: docker compose config --quiet
+
+      - name: Build image
+        run: docker build -t paygate:local .
+
+      - name: Start the full stack
+        run: docker compose up -d --no-build
+
+      - name: Smoke test (PostgreSQL + Kafka inside the chiseled image)
+        run: |
+          for i in $(seq 1 60); do
+            curl -fsS http://localhost:8080/health/ready > ready.json 2>/dev/null && break
+            sleep 2
+          done
+          cat ready.json
+          grep -q '"name":"database","status":"Healthy"' ready.json
+          grep -q '"name":"kafka","status":"Healthy"' ready.json
+
+          curl -fsS -X POST http://localhost:8080/v1/payments \
+            -H "X-Api-Key: pgk_test_demo_7c2f9a41e8b35d06" \
+            -H "Idempotency-Key: ci-${GITHUB_RUN_ID}" \
+            -H "Content-Type: application/json" \
+            -d '{"amount":2500,"currency":"EUR","method":"card","country":"DE","customerId":"ci-player","paymentToken":"tok_visa_4242"}' \
+            | tee payment.json
+          grep -q '"status":"captured"' payment.json
+
+          docker compose exec -T kafka /opt/kafka/bin/kafka-console-consumer.sh \
+            --bootstrap-server localhost:9092 --topic payments.v1 --from-beginning \
+            --max-messages 2 --timeout-ms 30000 --property print.key=true | tee events.txt
+          test "$(grep -c "$(jq -r .id payment.json)" events.txt)" -ge 2
+
+      - name: Compose logs
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

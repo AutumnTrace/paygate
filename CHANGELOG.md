@@ -24,5 +24,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - EF Core persistence: SQLite by default, PostgreSQL by configuration; optimistic concurrency on payments; indexes for merchant listings, provider references and key expiry
 - OpenAPI document and Scalar API reference, `/health/live` and `/health/ready`, Serilog request logging
 - API tests with `WebApplicationFactory`: idempotency semantics (including real concurrent duplicates), refunds, failover, auth, rate limiting, health and OpenAPI
+- Transactional outbox: domain events are stored with the change that raised them and published in order by a background dispatcher (at-least-once, trace context carried along)
+- Kafka publisher (Confluent.Kafka, idempotent producer, `acks=all`, CloudEvents binary headers, keyed by payment id) on topic `payments.v1`; in-memory publisher and `GET /v1/admin/events` when Kafka is not configured
+- OpenTelemetry traces, metrics and logs (OTLP exporter when `OTEL_EXPORTER_OTLP_ENDPOINT` is set, Azure Monitor when `APPLICATIONINSIGHTS_CONNECTION_STRING` is set); Kafka readiness check
+- Multi-stage Dockerfile on a chiseled, non-root runtime image; `docker compose` stack with PostgreSQL, Kafka (KRaft) and the Aspire dashboard
+- Integration tests with Testcontainers (PostgreSQL 17, Kafka 4): concurrent idempotent requests, concurrent webhook redeliveries, optimistic concurrency, schema indexes, events on the topic
+- CI: integration test job, Docker build and a compose smoke test (health, payment, events on the topic); CodeQL; release workflow publishing the image to GHCR
 - Domain, routing and failover unit tests, including FsCheck property tests
 - CI workflow: build, unit tests, coverage summary

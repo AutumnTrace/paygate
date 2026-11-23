@@ -3,10 +3,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Paygate.Application.Events;
 using Paygate.Application.Idempotency;
 using Paygate.Application.Payments;
 using Paygate.Application.Webhooks;
 using Paygate.Application.Providers;
+using Paygate.Infrastructure.Events;
 using Paygate.Infrastructure.Idempotency;
 using Paygate.Infrastructure.Persistence;
 using Paygate.Infrastructure.Providers;
@@ -83,6 +85,55 @@ public static class DependencyInjection
         services.AddHostedService<IdempotencyCleanupService>();
 
         return services;
+    }
+
+    /// <summary>
+    /// Domain events: transactional outbox plus a dispatcher that publishes to Kafka, or to an
+    /// in-memory publisher when Kafka is not configured (so <c>dotnet run</c> needs nothing else).
+    /// </summary>
+    public static IServiceCollection AddPaygateEvents(this IServiceCollection services, IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        services.AddOptions<EventsOptions>()
+            .Bind(configuration.GetSection(EventsOptions.SectionName))
+            .Validate(o => o.PollInterval > TimeSpan.Zero && o.BatchSize is > 0 and <= 1000, "Events: PollInterval must be positive and BatchSize within 1 to 1000.")
+            .ValidateOnStart();
+        services.AddOptions<KafkaOptions>()
+            .Bind(configuration.GetSection(KafkaOptions.SectionName))
+            .Validate(o => !string.IsNullOrWhiteSpace(o.BootstrapServers) && !string.IsNullOrWhiteSpace(o.Topic), "Kafka: BootstrapServers and Topic are required.")
+            .ValidateOnStart();
+
+        var events = configuration.GetSection(EventsOptions.SectionName).Get<EventsOptions>() ?? new EventsOptions();
+        if (events.Publisher == EventPublisherKind.Kafka)
+        {
+            services.AddSingleton<IEventPublisher, KafkaEventPublisher>();
+        }
+        else
+        {
+            services.AddSingleton<InMemoryEventPublisher>();
+            services.AddSingleton<IEventPublisher>(sp => sp.GetRequiredService<InMemoryEventPublisher>());
+        }
+
+        services.AddHostedService<OutboxDispatcher>();
+        return services;
+    }
+
+    /// <summary>Readiness checks for the database and, when enabled, Kafka.</summary>
+    public static IHealthChecksBuilder AddPaygateDependencyChecks(this IHealthChecksBuilder builder, IConfiguration configuration, string tag)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        builder.AddDbContextCheck<PaygateDbContext>("database", tags: [tag]);
+
+        var events = configuration.GetSection(EventsOptions.SectionName).Get<EventsOptions>() ?? new EventsOptions();
+        if (events.Publisher == EventPublisherKind.Kafka)
+        {
+            builder.AddCheck<KafkaHealthCheck>("kafka", tags: [tag]);
+        }
+
+        return builder;
     }
 
     /// <summary>Creates the schema if needed. Called once at start-up, before the server accepts traffic.</summary>
