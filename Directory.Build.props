@@ -8,7 +8,7 @@
     <AnalysisLevel>latest</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Authors>Mina Rotari</Authors>
     <Copyright>© 2026 Mina Rotari</Copyright>
     <RepositoryUrl>https://github.com/AutumnTrace/paygate</RepositoryUrl>
