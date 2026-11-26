@@ -31,6 +31,9 @@ public static class DependencyInjection
             .Validate(o => o.RetentionPeriod >= TimeSpan.FromMinutes(1), "Idempotency: RetentionPeriod must be at least one minute.")
             .Validate(o => o.InFlightLockTimeout > TimeSpan.Zero, "Idempotency: InFlightLockTimeout must be positive.")
             .Validate(o => o.MaxRequestBodyBytes is > 0 and <= 1_048_576, "Idempotency: MaxRequestBodyBytes must be within 1 byte and 1 MiB.")
+            // The cleanup service builds a PeriodicTimer from this. An out-of-range period would make
+            // that service throw, and the host would stop with an unrelated "task was canceled" error.
+            .Validate(o => o.CleanupInterval > TimeSpan.Zero && o.CleanupInterval <= MaxTimerPeriod, "Idempotency: CleanupInterval must be positive and under 49 days.")
             .ValidateOnStart();
 
         services.AddScoped<WebhookService>();
@@ -39,10 +42,14 @@ public static class DependencyInjection
             .Bind(configuration.GetSection(WebhookOptions.SectionName))
             .Validate(o => o.Tolerance > TimeSpan.Zero && o.Tolerance <= TimeSpan.FromHours(1), "Webhooks: Tolerance must be positive and at most one hour.")
             .Validate(o => o.Secrets.Values.SelectMany(s => s).All(s => s.Length >= 16), "Webhooks: every secret must be at least 16 characters.")
+            .Validate(o => o.MaxBodyBytes is > 0 and <= 1_048_576, "Webhooks: MaxBodyBytes must be within 1 byte and 1 MiB.")
             .ValidateOnStart();
 
         return services;
     }
+
+    /// <summary>The longest period <see cref="PeriodicTimer"/> accepts.</summary>
+    private static readonly TimeSpan MaxTimerPeriod = TimeSpan.FromMilliseconds(uint.MaxValue - 1);
 
     /// <summary>
     /// Routing, failover and one resilience pipeline per registered <see cref="IPaymentProvider"/>.

@@ -9,6 +9,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - CI runs the Docker image on its own (SQLite, as in the README's prebuilt-image option) next to the compose stack, and the release workflow pulls the published image anonymously and makes a test deposit against it
 
+### Fixed
+
+- `Idempotency:CleanupInterval` and `Webhooks:MaxBodyBytes` are validated at start-up. A zero or negative cleanup interval used to stop the host with an unrelated `TaskCanceledException`, and a zero body limit rejected every webhook with `413`
+
 ## [0.1.0] - 2026-11-23
 
 First release.

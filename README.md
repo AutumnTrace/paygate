@@ -659,7 +659,7 @@ dotnet test                                     # everything, Testcontainers nee
 | Suite | Count | What it covers |
 |---|---|---|
 | `Paygate.UnitTests` | 114 | State machine (every transition, reachability), `Money`, refunds, webhook ordering, FsCheck properties (refunds never exceed the capture, no sequence of webhooks moves a payment backwards); routing rules, priorities, amount bands, an 80/20 weight split over 10,000 plans; **failover on the real Polly pipelines**: timeout then failover, circuit opens and traffic moves, half-open recovery with `FakeTimeProvider`, declines never fail over, retries reuse the idempotency key, no retries without one, payout timeout stays pending; webhook signatures (tampering, replay window edges, rotation) |
-| `Paygate.Api.Tests` | 54 | The whole app through `WebApplicationFactory`: idempotency (replay, mismatch, in-flight `409`, **6 concurrent duplicates make one payment**, per-merchant scope), refunds, live failover through the admin API, webhooks end to end, auth, per-client rate limits, outbox events, health probes, OpenAPI document |
+| `Paygate.Api.Tests` | 59 | The whole app through `WebApplicationFactory`: idempotency (replay, mismatch, in-flight `409`, **6 concurrent duplicates make one payment**, per-merchant scope), refunds, live failover through the admin API, webhooks end to end, auth, per-client rate limits, outbox events, health probes, OpenAPI document, settings refused at start-up |
 | `Paygate.IntegrationTests` | 7 | Testcontainers **PostgreSQL 17 and Kafka 4.3**: 10 concurrent duplicates make one payment and one key row, 8 concurrent webhook redeliveries apply once, optimistic concurrency rejects a stale refund, the expected indexes exist, events reach the topic in order with CloudEvents headers |
 
 CI runs all three suites, collects coverage into the job summary, builds the Docker image, and boots the compose stack to make a real deposit and read its events back from Kafka.
@@ -726,11 +726,13 @@ dotnet run -c Release --project benchmarks/Paygate.Benchmarks -- --filter "*"
 | `ApiKeys:Clients` | `[]` | `{ Id, Name, Role, KeySha256 }` per operator; only hashes are stored |
 | `Webhooks:Secrets:{provider}` | none | One or more HMAC secrets per provider (several during rotation) |
 | `Webhooks:Tolerance` | `00:05:00` | Replay window for webhook timestamps |
+| `Webhooks:MaxBodyBytes` | `65536` | Largest webhook body accepted; larger deliveries get `413` (1 byte to 1 MiB) |
 | `Routing:Rules` | see above | The routing table, validated at start-up |
 | `Resilience:*` | 1 s attempt, 4 s total, 2 retries, breaker 50% of at least 3 calls in 30 s, open for 30 s | Per-provider pipeline settings |
 | `Providers:{name}:Faults` | latency only | Initial fault injection for the simulators |
 | `RateLimiting:PermitsPerSecond` / `Burst` | `20` / `40` | Token bucket per API client |
 | `Idempotency:RetentionPeriod` | `1.00:00:00` | How long keys and stored responses are kept |
+| `Idempotency:CleanupInterval` | `00:10:00` | How often expired keys are deleted |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | unset | Turns on the OTLP exporter |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | unset | Turns on the Azure Monitor exporter |
 
