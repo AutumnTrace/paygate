@@ -5,6 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-26
+
 ### Added
 
 - CI runs the Docker image on its own (SQLite, as in the README's prebuilt-image option) next to the compose stack, and the release workflow pulls the published image anonymously and makes a test deposit against it
@@ -59,5 +61,6 @@ First release.
 - API tests with `WebApplicationFactory`, including concurrent idempotent requests, live failover and webhooks
 - Integration tests with Testcontainers on PostgreSQL and Kafka
 
-[Unreleased]: https://github.com/AutumnTrace/paygate/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/AutumnTrace/paygate/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/AutumnTrace/paygate/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/AutumnTrace/paygate/releases/tag/v0.1.0
